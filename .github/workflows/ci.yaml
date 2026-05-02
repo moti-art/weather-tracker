@@ -1,37 +1,19 @@
-name: CI for Weather Tracker
-
-on:
-  push:
-    branches: [ "main" ]
-
-jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4 # עדכון ל-v4
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3 # עדכון ל-v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5 # עדכון ל-v5
-        with:
-          context: .
-          push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/weather-tracker:${{ github.sha }}
-
-      - name: Update Helm Chart Tag
+- name: Update Helm Chart Tag
         run: |
           git config --global user.email "github-actions@github.com"
           git config --global user.name "github-actions"
-          # וודא שהחלפת את <YOUR_GITHUB_USER> בשם שלך
+          
           git clone https://${{ secrets.GITOPS_TOKEN }}@github.com/moti-art/weather-gitops.git
           cd weather-gitops/charts/weather-app
-          sed -i "s/tag:.*/tag: \"${{ github.sha }}\"/" values-dev.yaml
-          git add values-dev.yaml
-          git commit -m "update tracker image tag to ${{ github.sha }}"
-          git push
+          
+          # פקודת ה-sed הזו מחפשת את ה-tag שנמצא תחת tracker:
+          # אנחנו אומרים לו: חפש 2 שורות אחרי המילה tracker ותחליף את ה-tag
+          sed -i '/tracker:/,/tag:/ s/tag: .*/tag: "${{ github.sha }}"/' values-dev.yaml
+
+          if git diff --quiet; then
+            echo "No changes"
+          else
+            git add values-dev.yaml
+            git commit -m "chore: update tracker tag to ${{ github.sha }}"
+            git push
+          fi
